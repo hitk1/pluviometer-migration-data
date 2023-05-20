@@ -10,6 +10,20 @@ interface IUser {
     deleted_at: firebase.firestore.Timestamp | null
 }
 
+interface IPluviometer {
+    id: string
+    created_at: firebase.firestore.Timestamp,
+    location: string
+    name: string
+    updated_at: firebase.firestore.Timestamp,
+    user_id: string
+}
+
+interface IUserRecords {
+    date: Date,
+    amount: number
+}
+
 const loadUserData = async (): Promise<IUser> => {
     const emailToFind = 'doni.degini@gmail.com'
     let userToRetrive: IUser | null = null
@@ -66,11 +80,6 @@ const getCurrentDataFromUser = () => {
         quantidade: number
     }
 
-    interface IUserRecords {
-        date: Date,
-        amount: number
-    }
-
     const userToFind = 'vera.degini@gmail.com'
     let userToRetrive: IUser
     const fullFile = require('./current-database.json')
@@ -95,7 +104,10 @@ const getCurrentDataFromUser = () => {
         const formatedDate = new Date(
             Number(year),
             Number(month) - 1,
-            Number(day)
+            Number(day),
+            12,
+            0,
+            0
         )
 
         userRecords.push({
@@ -107,16 +119,70 @@ const getCurrentDataFromUser = () => {
     return userRecords
 }
 
+const loadUserPluviometer = async (userId: string) => {
+    const userPluviometers: IPluviometer[] = []
+    const pluviometerCollection = firebase.firestore().collection('pluviometers')
+
+    const docs = await pluviometerCollection.listDocuments()
+
+    await Promise.all(docs.map(async item => {
+        const pluvRef = await item.get()
+        const pluviometerData = pluvRef.data() as IPluviometer
+
+        if (pluviometerData.user_id === userId)
+            userPluviometers.push({
+                ...pluviometerData,
+                id: pluvRef.id,
+            })
+    }))
+
+    return userPluviometers
+}
+
+const migrateData = async (userId: string, pluviometer: IPluviometer, placedRecords: IUserRecords[]) => {
+    interface IRecord {
+        amount: number
+        created_at: firebase.firestore.Timestamp,
+        local_id: string
+        pluviometer_id: string
+        updated_at: firebase.firestore.Timestamp
+        user_id: string
+    }
+
+    const recordsCollection = firebase.firestore().collection('records')
+
+    for (const single of placedRecords) {
+        await recordsCollection.add({
+            amount: single.amount,
+            created_at: single.date as any,
+            updated_at: single.date as any,
+            local_id: '',
+            pluviometer_id: pluviometer.id,
+            user_id: userId
+
+        } as IRecord)
+    }
+}
+
 (async () => {
     try {
         firebase.initializeApp({
             credential: firebase.credential.cert(firebaseCredentials as any),
         })
 
-        // const user = await loadUserData()
+        const { id: userId } = await loadUserData()
+        const [pluviometer] = await loadUserPluviometer(userId)
         const placedRecords = getCurrentDataFromUser()
-        console.log(placedRecords)
 
+        await migrateData(
+            userId,
+            pluviometer,
+            placedRecords
+        )
+
+        console.log('records migrated')
+
+        process.exit(0)
     } catch (error) {
         console.log(`Global error: ${error.message}`)
     }
