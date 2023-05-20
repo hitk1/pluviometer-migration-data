@@ -1,0 +1,19 @@
+{
+  "name": "pluviometer-data-migration",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "engines": {
+    "node": "^18.0.0"
+  },
+  "scripts": {
+    "start": "tsx watch --inspect ./index.ts"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.8.0"
+  },
+  "devDependencies": {
+    "tsx": "^3.12.7",
+    "typescript": "^5.0.4"
+  }
+}
